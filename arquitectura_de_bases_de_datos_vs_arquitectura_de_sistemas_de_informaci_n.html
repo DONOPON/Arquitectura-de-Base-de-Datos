@@ -1,0 +1,1361 @@
+<!DOCTYPE html>
+<html lang="es" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Arquitectura de BD vs. Arquitectura de SI — Eduardo Felipe Oña Yánez</title>
+  <!-- Tailwind CSS via CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Google Fonts: Inter & JetBrains Mono -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'sans-serif'],
+            mono: ['JetBrains Mono', 'monospace'],
+          },
+          colors: {
+            slate: {
+              950: '#060913',
+            }
+          },
+          animation: {
+            'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+            'float': 'float 6s ease-in-out infinite',
+          },
+          keyframes: {
+            float: {
+              '0%, 100%': { transform: 'translateY(0)' },
+              '50%': { transform: 'translateY(-6px)' },
+            }
+          }
+        }
+      }
+    }
+  </script>
+
+  <style>
+    /* Estilos base glassmorphism y animaciones fluidas */
+    body {
+      background-color: #060913;
+      background-image: 
+        radial-gradient(at 0% 0%, rgba(6, 182, 212, 0.12) 0px, transparent 50%),
+        radial-gradient(at 100% 0%, rgba(139, 92, 246, 0.12) 0px, transparent 50%),
+        radial-gradient(at 50% 100%, rgba(16, 185, 129, 0.08) 0px, transparent 50%);
+      background-attachment: fixed;
+      color: #f1f5f9;
+      overflow-x: hidden;
+    }
+
+    .glass-card {
+      background: rgba(15, 23, 42, 0.65);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(148, 163, 184, 0.12);
+      box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.35);
+    }
+
+    .glass-panel {
+      background: rgba(30, 41, 59, 0.45);
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(148, 163, 184, 0.1);
+    }
+
+    .tab-active {
+      background: linear-gradient(135deg, rgba(6, 182, 212, 0.2), rgba(139, 92, 246, 0.2));
+      border-color: rgba(34, 211, 238, 0.5);
+      color: #ffffff;
+      box-shadow: 0 0 20px rgba(6, 182, 212, 0.2);
+    }
+
+    /* Animación de flujo de paquetes de datos */
+    @keyframes flowPacket {
+      0% { left: 0%; opacity: 0; }
+      15% { opacity: 1; }
+      85% { opacity: 1; }
+      100% { left: 100%; opacity: 0; }
+    }
+
+    .packet-dot {
+      position: absolute;
+      top: 50%;
+      transform: translate(-50%, -50%);
+      width: 10px;
+      height: 10px;
+      border-radius: 9999px;
+      background: #22d3ee;
+      box-shadow: 0 0 12px #22d3ee, 0 0 24px #22d3ee;
+      animation: flowPacket 1.4s ease-in-out forwards;
+    }
+
+    .fade-in {
+      animation: fadeIn 0.35s ease-out forwards;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(8px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* Custom Scrollbar */
+    ::-webkit-scrollbar {
+      width: 8px;
+      height: 8px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #0f172a;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #334155;
+      border-radius: 4px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #475569;
+    }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col font-sans antialiased selection:bg-cyan-500/30 selection:text-cyan-200">
+
+  <!-- Barra Superior Institucional y de Autoría -->
+  <header class="sticky top-0 z-50 glass-card border-b border-slate-800/80">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+      <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+        <!-- Identidad del Material -->
+        <div class="flex items-start sm:items-center gap-3.5">
+          <div class="w-11 h-11 rounded-xl bg-gradient-to-br from-cyan-500 via-violet-500 to-emerald-500 p-[1px] shrink-0 shadow-lg shadow-cyan-500/20">
+            <div class="w-full h-full bg-slate-950 rounded-xl flex items-center justify-center">
+              <!-- Ícono SVG Arquitectura -->
+              <svg class="w-6 h-6 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4" />
+              </svg>
+            </div>
+          </div>
+          <div>
+            <div class="flex flex-wrap items-center gap-2">
+              <span class="px-2.5 py-0.5 text-[11px] font-semibold tracking-wider uppercase rounded-full bg-cyan-500/15 text-cyan-300 border border-cyan-500/30">
+                Bases de Datos II • PUCE
+              </span>
+              <span class="px-2.5 py-0.5 text-[11px] font-medium rounded-full bg-violet-500/15 text-violet-300 border border-violet-500/30">
+                Guía de Estudio: Preguntas 2 y 7
+              </span>
+            </div>
+            <h1 class="text-lg sm:text-2xl font-extrabold tracking-tight bg-gradient-to-r from-white via-slate-100 to-slate-300 bg-clip-text text-transparent mt-1">
+              Arquitectura de Bases de Datos vs. Arquitectura de Sistemas de Información
+            </h1>
+            <p class="text-xs sm:text-sm text-slate-400 mt-0.5">
+              Material Didáctico Interactivo — Análisis Aplicado con Datos Reales (INEVAL, INEC, INAMHI &amp; Ecosistema Híbrido PostgreSQL/MongoDB)
+            </p>
+          </div>
+        </div>
+
+        <!-- Badge de Autor -->
+        <div class="flex items-center justify-between sm:justify-end gap-3 bg-slate-900/80 border border-slate-800 rounded-xl px-3.5 py-2 shrink-0">
+          <div class="text-left sm:text-right">
+            <p class="text-xs text-slate-400">Autor / Estudiante</p>
+            <p class="text-sm font-semibold text-slate-100">Eduardo Felipe Oña Yánez</p>
+            <p class="text-[11px] text-emerald-400 font-mono">Pontificia Universidad Católica del Ecuador</p>
+          </div>
+          <div class="w-9 h-9 rounded-lg bg-gradient-to-tr from-emerald-500/20 to-cyan-500/20 border border-emerald-500/30 flex items-center justify-center text-emerald-300 font-bold text-sm">
+            EO
+          </div>
+        </div>
+      </div>
+
+      <!-- Navegación por Pestañas -->
+      <nav class="mt-4 pt-3 border-t border-slate-800/80 flex flex-wrap gap-2" aria-label="Navegación de módulos">
+        <button onclick="switchTab('general')" id="tab-general" class="tab-btn tab-active px-3.5 py-2 rounded-xl text-xs sm:text-sm font-medium border border-slate-700/70 text-slate-300 hover:text-white hover:border-slate-600 transition-all flex items-center gap-2 cursor-pointer">
+          <span class="w-2 h-2 rounded-full bg-cyan-400"></span>
+          Vista General &amp; Ecosistema
+        </button>
+        <button onclick="switchTab('pregunta2')" id="tab-pregunta2" class="tab-btn px-3.5 py-2 rounded-xl text-xs sm:text-sm font-medium border border-slate-700/70 text-slate-300 hover:text-white hover:border-slate-600 transition-all flex items-center gap-2 cursor-pointer">
+          <span class="w-2 h-2 rounded-full bg-violet-400"></span>
+          Pregunta 2: Cliente-Servidor vs. Hardware Paralelo
+        </button>
+        <button onclick="switchTab('pregunta7')" id="tab-pregunta7" class="tab-btn px-3.5 py-2 rounded-xl text-xs sm:text-sm font-medium border border-slate-700/70 text-slate-300 hover:text-white hover:border-slate-600 transition-all flex items-center gap-2 cursor-pointer">
+          <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
+          Pregunta 7: Nube DBaaS vs. IaaS/PaaS/SaaS
+        </button>
+        <button onclick="switchTab('quiz')" id="tab-quiz" class="tab-btn px-3.5 py-2 rounded-xl text-xs sm:text-sm font-medium border border-slate-700/70 text-slate-300 hover:text-white hover:border-slate-600 transition-all flex items-center gap-2 cursor-pointer">
+          <span class="w-2 h-2 rounded-full bg-amber-400"></span>
+          Laboratorio &amp; Quiz Interactivo
+        </button>
+      </nav>
+    </div>
+  </header>
+
+  <!-- Contenedor Principal -->
+  <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
+
+    <!-- ===================================================================== -->
+    <!-- SECCIÓN 0: VISTA GENERAL & ECOSISTEMA REAL DE DATOS                    -->
+    <!-- ===================================================================== -->
+    <section id="section-general" class="tab-section fade-in space-y-8">
+      <!-- Hero Banner Didáctico -->
+      <div class="glass-card rounded-2xl p-6 sm:p-8 relative overflow-hidden">
+        <div class="absolute -right-20 -top-20 w-72 h-72 bg-cyan-500/10 rounded-full blur-3xl pointer-events-none"></div>
+        <div class="absolute -left-20 -bottom-20 w-72 h-72 bg-violet-500/10 rounded-full blur-3xl pointer-events-none"></div>
+
+        <div class="relative z-10 grid grid-cols-1 lg:grid-cols-12 gap-6 items-center">
+          <div class="lg:col-span-7 space-y-4">
+            <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-xs font-medium">
+              <span>Propósito Pedagógico</span>
+              <span>•</span>
+              <span>Separación de Fronteras Arquitectónicas</span>
+            </div>
+            <h2 class="text-2xl sm:text-3xl font-bold text-white leading-tight">
+              ¿Por qué confundimos el despliegue de software con el motor interno de datos?
+            </h2>
+            <p class="text-slate-300 text-sm sm:text-base leading-relaxed">
+              En ingeniería de software y administración de datos, un error habitual es mezclar la <strong class="text-cyan-300">Arquitectura del Sistema de Información (SI)</strong> —cómo se distribuyen interfaces, lógica de negocio y servicios— con la <strong class="text-violet-300">Arquitectura de la Base de Datos (BD)</strong> —cómo el SGBD organiza bloques en disco, buffers en RAM, paralelismo de CPU e infraestructura física/cloud.
+            </p>
+            <div class="flex flex-wrap gap-3 pt-2">
+              <button onclick="switchTab('pregunta2')" class="px-4 py-2.5 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-slate-950 font-bold text-sm shadow-lg shadow-cyan-500/25 transition-all cursor-pointer">
+                Explorar Pregunta 2 (Cliente-Servidor) →
+              </button>
+              <button onclick="switchTab('pregunta7')" class="px-4 py-2.5 rounded-xl bg-slate-800/90 hover:bg-slate-700 text-white border border-slate-700 font-semibold text-sm transition-all cursor-pointer">
+                Explorar Pregunta 7 (Cloud DBaaS) →
+              </button>
+            </div>
+          </div>
+
+          <!-- Tarjeta Resumen Frontera Conceptual -->
+          <div class="lg:col-span-5 glass-panel rounded-2xl p-5 border border-slate-700/60 space-y-4">
+            <h3 class="text-sm font-bold uppercase tracking-wider text-slate-400 flex items-center gap-2">
+              <svg class="w-4 h-4 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+              Mapa de Fronteras en Nuestro Proyecto
+            </h3>
+            <div class="space-y-3 text-xs sm:text-sm">
+              <div class="p-3 rounded-xl bg-cyan-950/30 border border-cyan-500/25">
+                <p class="font-bold text-cyan-300">Capa 1: Arquitectura del Sistema de Información (SI)</p>
+                <p class="text-slate-300 mt-1">Dashboards en <strong>Streamlit / Power BI</strong> (Front-end) comunicándose vía protocolos TCP/IP con scripts <strong>Python ETL</strong> y agentes transaccionales (Middleware Cliente-Servidor).</p>
+              </div>
+              <div class="p-3 rounded-xl bg-violet-950/30 border border-violet-500/25">
+                <p class="font-bold text-violet-300">Capa 2: Arquitectura Interna del DBMS (On-Premise)</p>
+                <p class="text-slate-300 mt-1">Instancia local <strong>PostgreSQL (<code class="text-violet-200">dwh_instancia_c</code>)</strong> operando en arquitectura física <em>Shared Memory (SMP)</em> con gestión de <code>shared_buffers</code>, índices B-Tree y planes de ejecución.</p>
+              </div>
+              <div class="p-3 rounded-xl bg-emerald-950/30 border border-emerald-500/25">
+                <p class="font-bold text-emerald-300">Capa 3: Paradigma Cloud DBaaS (Nube)</p>
+                <p class="text-slate-300 mt-1">Clústeres documentales en <strong>MongoDB Atlas</strong> alojando colecciones públicas masivas (INEVAL, INEC, INAMHI), delegando parches, hardware y elasticidad al proveedor.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Ecosistema Real de Datasets de Eduardo -->
+      <div class="space-y-4">
+        <div class="flex flex-col sm:flex-row sm:items-end justify-between gap-2">
+          <div>
+            <h3 class="text-xl font-bold text-white">Nuestro Ecosistema Real de Datos (Caso de Estudio)</h3>
+            <p class="text-sm text-slate-400">Fuentes heterogéneas integradas en nuestras prácticas para validar las Preguntas 2 y 7.</p>
+          </div>
+          <span class="text-xs font-mono text-cyan-400 bg-cyan-950/40 px-3 py-1 rounded-lg border border-cyan-500/20">
+            4 Dominios Públicos + 1 Esquema Comercial OLTP/DWH
+          </span>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <!-- Dataset 1: INEVAL -->
+          <div class="glass-card rounded-2xl p-5 hover:border-cyan-500/40 transition-all group">
+            <div class="flex items-center justify-between mb-3">
+              <span class="px-2.5 py-1 rounded-lg bg-cyan-500/15 text-cyan-300 text-xs font-bold">INEVAL Educación</span>
+              <span class="text-xs font-mono text-slate-400">Ser Bachiller</span>
+            </div>
+            <h4 class="font-bold text-white group-hover:text-cyan-300 transition-colors">Evaluación Educativa Nacional</h4>
+            <p class="text-xs text-slate-400 mt-2 leading-relaxed">
+              Registros de desempeño académico por provincia, cantón, sostenimiento y dominios (Matemática, Lengua, Ciencias). Requiere escaneos agregados y particionamiento analítico.
+            </p>
+            <div class="mt-4 pt-3 border-t border-slate-800 flex items-center justify-between text-[11px] font-mono text-slate-400">
+              <span>Alojamiento:</span>
+              <span class="text-emerald-400">MongoDB Atlas / DWH</span>
+            </div>
+          </div>
+
+          <!-- Dataset 2: INEC Salud -->
+          <div class="glass-card rounded-2xl p-5 hover:border-violet-500/40 transition-all group">
+            <div class="flex items-center justify-between mb-3">
+              <span class="px-2.5 py-1 rounded-lg bg-violet-500/15 text-violet-300 text-xs font-bold">INEC Salud</span>
+              <span class="text-xs font-mono text-slate-400">Egresos Hosp.</span>
+            </div>
+            <h4 class="font-bold text-white group-hover:text-violet-300 transition-colors">Estadísticas Hospitalarias</h4>
+            <p class="text-xs text-slate-400 mt-2 leading-relaxed">
+              Microdatos de morbilidad, diagnósticos CIE-10, días de estadía y cobertura sanitaria. Alto volumen tabular que pone a prueba el escalamiento de disco y memoria.
+            </p>
+            <div class="mt-4 pt-3 border-t border-slate-800 flex items-center justify-between text-[11px] font-mono text-slate-400">
+              <span>Alojamiento:</span>
+              <span class="text-emerald-400">DBaaS + Staging ETL</span>
+            </div>
+          </div>
+
+          <!-- Dataset 3: INAMHI Clima -->
+          <div class="glass-card rounded-2xl p-5 hover:border-emerald-500/40 transition-all group">
+            <div class="flex items-center justify-between mb-3">
+              <span class="px-2.5 py-1 rounded-lg bg-emerald-500/15 text-emerald-300 text-xs font-bold">INAMHI Clima</span>
+              <span class="text-xs font-mono text-slate-400">Series Tiempo</span>
+            </div>
+            <h4 class="font-bold text-white group-hover:text-emerald-300 transition-colors">Meteorología e Hidrología</h4>
+            <p class="text-xs text-slate-400 mt-2 leading-relaxed">
+              Variables climáticas históricas (precipitación, temperatura, humedad) por estación meteorológica para cruce multidimensional con logística y rendimiento territorial.
+            </p>
+            <div class="mt-4 pt-3 border-t border-slate-800 flex items-center justify-between text-[11px] font-mono text-slate-400">
+              <span>Alojamiento:</span>
+              <span class="text-cyan-400">PostgreSQL / API JSON</span>
+            </div>
+          </div>
+
+          <!-- Dataset 4: Riesgos Judiciales + Comercial -->
+          <div class="glass-card rounded-2xl p-5 hover:border-amber-500/40 transition-all group">
+            <div class="flex items-center justify-between mb-3">
+              <span class="px-2.5 py-1 rounded-lg bg-amber-500/15 text-amber-300 text-xs font-bold">Judicial &amp; OLTP</span>
+              <span class="text-xs font-mono text-slate-400">dwh_instancia_c</span>
+            </div>
+            <h4 class="font-bold text-white group-hover:text-amber-300 transition-colors">Riesgos &amp; Ventas 3FN</h4>
+            <p class="text-xs text-slate-400 mt-2 leading-relaxed">
+              Registros de procesos judiciales combinados con nuestro esquema comercial transaccional (<code class="text-amber-200">factura_cabecera</code>, <code class="text-amber-200">clientes</code>) y cubo OLAP.
+            </p>
+            <div class="mt-4 pt-3 border-t border-slate-800 flex items-center justify-between text-[11px] font-mono text-slate-400">
+              <span>Alojamiento:</span>
+              <span class="text-violet-400">PostgreSQL Local (SMP)</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===================================================================== -->
+    <!-- SECCIÓN 1: PREGUNTA 2 — CLIENTE-SERVIDOR VS. HARDWARE PARALELO        -->
+    <!-- ===================================================================== -->
+    <section id="section-pregunta2" class="tab-section hidden fade-in space-y-8">
+      <!-- Encabezado Pregunta 2 -->
+      <div class="glass-card rounded-2xl p-6 border-l-4 border-violet-500">
+        <div class="flex flex-wrap items-center justify-between gap-2 mb-2">
+          <span class="px-3 py-1 rounded-full bg-violet-500/20 text-violet-300 text-xs font-bold uppercase tracking-wider">
+            Pregunta 2 • Guía de Estudio
+          </span>
+          <span class="text-xs font-mono text-slate-400">Ubicación Conceptual del Modelo Cliente-Servidor</span>
+        </div>
+        <h2 class="text-xl sm:text-2xl font-bold text-white">
+          ¿Por qué es un error conceptual clasificar a Cliente-Servidor como una arquitectura interna de almacenamiento y procesamiento de BD?
+        </h2>
+        <p class="text-slate-300 text-sm mt-2 leading-relaxed">
+          El modelo Cliente-Servidor (en 2 o 3 capas) define la <strong class="text-cyan-300">separación funcional y distribución lógica de procesos</strong> en un Sistema de Información (Front-end interactivo vs. servicios centrales). En contraste, la arquitectura interna de una Base de Datos Paralela/Distribuida describe cómo el motor SGBD acopla <strong class="text-violet-300">CPU, Memoria RAM y Discos físicos</strong> para ejecutar operadores relacionales.
+        </p>
+      </div>
+
+      <!-- Tarjetas Interactivas: Mito vs. Realidad -->
+      <div class="space-y-3">
+        <h3 class="text-lg font-bold text-white flex items-center gap-2">
+          <span class="w-2.5 h-2.5 rounded-full bg-rose-500"></span>
+          Diagnóstico Conceptual: Haz clic en cada tarjeta para contrastar Mito vs. Realidad
+        </h3>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <!-- Card 1 -->
+          <div onclick="toggleMythCard(1)" class="glass-card rounded-2xl p-5 cursor-pointer border border-slate-700/70 hover:border-cyan-400/60 transition-all select-none">
+            <div class="flex items-center justify-between mb-3">
+              <span id="myth-badge-1" class="px-2.5 py-0.5 rounded-md bg-rose-500/20 text-rose-300 text-xs font-bold">MITO COMÚN #1</span>
+              <span class="text-xs text-cyan-400 underline">Clic para invertir</span>
+            </div>
+            <div id="myth-content-1">
+              <p class="text-sm font-semibold text-slate-200">
+                "Como mi app usa Cliente-Servidor en 3 capas, mi base de datos PostgreSQL ya tiene escalabilidad paralela interna."
+              </p>
+              <p class="text-xs text-slate-400 mt-3">
+                Confunde el desacople de red entre interfaz y servidor con la capacidad física del motor de datos.
+              </p>
+            </div>
+          </div>
+
+          <!-- Card 2 -->
+          <div onclick="toggleMythCard(2)" class="glass-card rounded-2xl p-5 cursor-pointer border border-slate-700/70 hover:border-cyan-400/60 transition-all select-none">
+            <div class="flex items-center justify-between mb-3">
+              <span id="myth-badge-2" class="px-2.5 py-0.5 rounded-md bg-rose-500/20 text-rose-300 text-xs font-bold">MITO COMÚN #2</span>
+              <span class="text-xs text-cyan-400 underline">Clic para invertir</span>
+            </div>
+            <div id="myth-content-2">
+              <p class="text-sm font-semibold text-slate-200">
+                "El protocolo TCP/IP entre Python y PostgreSQL define cómo se guardan los bloques en el disco duro."
+              </p>
+              <p class="text-xs text-slate-400 mt-3">
+                Confunde el protocolo de comunicación de sesión con el gestor de almacenamiento (Storage Manager).
+              </p>
+            </div>
+          </div>
+
+          <!-- Card 3 -->
+          <div onclick="toggleMythCard(3)" class="glass-card rounded-2xl p-5 cursor-pointer border border-slate-700/70 hover:border-cyan-400/60 transition-all select-none">
+            <div class="flex items-center justify-between mb-3">
+              <span id="myth-badge-3" class="px-2.5 py-0.5 rounded-md bg-rose-500/20 text-rose-300 text-xs font-bold">MITO COMÚN #3</span>
+              <span class="text-xs text-cyan-400 underline">Clic para invertir</span>
+            </div>
+            <div id="myth-content-3">
+              <p class="text-sm font-semibold text-slate-200">
+                "Cliente-Servidor es lo opuesto a Shared Nothing o Shared Memory en bases de datos paralelas."
+              </p>
+              <p class="text-xs text-slate-400 mt-3">
+                Compara categorías ortogonales: una es topología de aplicación (SI) y la otra es topología de hardware DBMS.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- SIMULADOR INTERACTIVO DE FLUJO: CASO REAL INEVAL + INAMHI + POSTGRESQL -->
+      <div class="glass-card rounded-2xl p-6 space-y-6 border border-cyan-500/25">
+        <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-4 border-b border-slate-800">
+          <div>
+            <span class="text-xs font-mono text-cyan-400 uppercase tracking-wider">Simulador Interactivo de Ejecución</span>
+            <h3 class="text-xl font-bold text-white mt-0.5">Flujo de Consulta Analítica Real (INEVAL + INAMHI + Ventas)</h3>
+            <p class="text-xs sm:text-sm text-slate-400 mt-1">
+              Consulta simulada: <code class="text-cyan-300 bg-slate-900 px-2 py-0.5 rounded">"Calcular promedio de rendimiento INEVAL por provincia cruzado con clima INAMHI y ventas"</code>
+            </p>
+          </div>
+          <button onclick="runQuerySimulation()" id="btn-run-sim" class="px-5 py-3 rounded-xl bg-gradient-to-r from-cyan-500 via-blue-500 to-violet-600 hover:brightness-110 text-white font-bold text-sm shadow-lg shadow-cyan-500/25 flex items-center justify-center gap-2 transition-all cursor-pointer shrink-0">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+            <span>Simular Ejecución Paso a Paso</span>
+          </button>
+        </div>
+
+        <!-- NIVEL 1: ARQUITECTURA DE SISTEMA DE INFORMACIÓN (CLIENTE-SERVIDOR 3 CAPAS) -->
+        <div class="space-y-3">
+          <div class="flex items-center justify-between">
+            <h4 class="text-sm font-bold uppercase tracking-wider text-cyan-300 flex items-center gap-2">
+              <span class="px-2 py-0.5 rounded bg-cyan-500/20 text-cyan-300 text-xs">Nivel 1</span>
+              Arquitectura del Sistema de Información — Modelo Cliente-Servidor (3 Capas)
+            </h4>
+            <span id="sim-status-badge" class="text-xs font-mono text-slate-400 bg-slate-900 px-2.5 py-1 rounded-lg border border-slate-800">
+              Estado: Listo para simular
+            </span>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-5 gap-3 items-center bg-slate-950/60 p-4 rounded-2xl border border-slate-800/80">
+            <!-- Capa 1: Cliente -->
+            <div id="sim-node-client" class="glass-panel rounded-xl p-4 border border-slate-700 transition-all duration-300">
+              <div class="flex items-center justify-between mb-2">
+                <span class="text-[11px] font-mono text-cyan-400">CAPA PRESENTACIÓN</span>
+                <span class="w-2 h-2 rounded-full bg-slate-600" id="dot-client"></span>
+              </div>
+              <p class="font-bold text-white text-sm">Cliente (Front-End)</p>
+              <p class="text-xs text-slate-400 mt-1">Dashboard Streamlit / Power BI del analista.</p>
+              <div class="mt-2 text-[11px] font-mono text-cyan-300/80 bg-slate-900/90 px-2 py-1 rounded">
+                HTTP / UI Event
+              </div>
+            </div>
+
+            <!-- Conector 1 -->
+            <div class="hidden md:flex flex-col items-center justify-center relative h-12">
+              <div class="w-full h-0.5 bg-slate-700 relative overflow-hidden" id="pipe-1"></div>
+              <span class="text-[10px] font-mono text-slate-400 mt-1">REST / JSON</span>
+            </div>
+
+            <!-- Capa 2: Servidor de Aplicaciones -->
+            <div id="sim-node-middleware" class="glass-panel rounded-xl p-4 border border-slate-700 transition-all duration-300">
+              <div class="flex items-center justify-between mb-2">
+                <span class="text-[11px] font-mono text-violet-400">CAPA LÓGICA / APP</span>
+                <span class="w-2 h-2 rounded-full bg-slate-600" id="dot-middleware"></span>
+              </div>
+              <p class="font-bold text-white text-sm">Servidor Aplicaciones</p>
+              <p class="text-xs text-slate-400 mt-1">Script Python (<code class="text-violet-300">psycopg2</code>) orquesta reglas y filtros.</p>
+              <div class="mt-2 text-[11px] font-mono text-violet-300/80 bg-slate-900/90 px-2 py-1 rounded">
+                TCP/IP Puerto 5433
+              </div>
+            </div>
+
+            <!-- Conector 2 -->
+            <div class="hidden md:flex flex-col items-center justify-center relative h-12">
+              <div class="w-full h-0.5 bg-slate-700 relative overflow-hidden" id="pipe-2"></div>
+              <span class="text-[10px] font-mono text-slate-400 mt-1">Query SQL</span>
+            </div>
+
+            <!-- Capa 3: Servidor de Datos (Frontera hacia DBMS) -->
+            <div id="sim-node-dbserver" class="glass-panel rounded-xl p-4 border border-slate-700 transition-all duration-300">
+              <div class="flex items-center justify-between mb-2">
+                <span class="text-[11px] font-mono text-emerald-400">CAPA DATOS (SGBD)</span>
+                <span class="w-2 h-2 rounded-full bg-slate-600" id="dot-dbserver"></span>
+              </div>
+              <p class="font-bold text-white text-sm">Motor DBMS Receptor</p>
+              <p class="text-xs text-slate-400 mt-1">Parser, Optimizador de Costos y Planificador (<code class="text-emerald-300">dwh_instancia_c</code>).</p>
+              <div class="mt-2 text-[11px] font-mono text-emerald-300/80 bg-slate-900/90 px-2 py-1 rounded">
+                Delegación Interna ↓
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- NIVEL 2: ARQUITECTURA INTERNA DE BASE DE DATOS (HARDWARE PARALELO) -->
+        <div class="space-y-4 pt-2">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <h4 class="text-sm font-bold uppercase tracking-wider text-violet-300 flex items-center gap-2">
+              <span class="px-2 py-0.5 rounded bg-violet-500/20 text-violet-300 text-xs">Nivel 2</span>
+              Arquitectura Interna Física del DBMS — Selecciona Topología de Hardware:
+            </h4>
+
+            <!-- Selector de 3 arquitecturas físicas -->
+            <div class="inline-flex rounded-xl bg-slate-900 p-1 border border-slate-700/80 self-start">
+              <button onclick="selectHwArch('smp')" id="hw-btn-smp" class="hw-btn px-3 py-1.5 rounded-lg text-xs font-bold bg-violet-600 text-white transition-all cursor-pointer">
+                1. Shared Memory (SMP)
+              </button>
+              <button onclick="selectHwArch('disk')" id="hw-btn-disk" class="hw-btn px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-400 hover:text-white transition-all cursor-pointer">
+                2. Shared Disk
+              </button>
+              <button onclick="selectHwArch('nothing')" id="hw-btn-nothing" class="hw-btn px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-400 hover:text-white transition-all cursor-pointer">
+                3. Shared Nothing (MPP)
+              </button>
+            </div>
+          </div>
+
+          <!-- Lienzo Visual Dinámico de Hardware Paralelo -->
+          <div id="hw-diagram-container" class="bg-slate-950/80 rounded-2xl p-5 border border-violet-500/30 transition-all">
+            <!-- Contenido inyectado por JS según arquitectura física -->
+          </div>
+
+          <!-- Log de ejecución paso a paso -->
+          <div class="bg-slate-950 rounded-xl p-3.5 border border-slate-800 font-mono text-xs text-slate-300 flex items-center gap-3">
+            <span class="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-bold shrink-0">TRACE</span>
+            <p id="sim-trace-text">Presiona "Simular Ejecución Paso a Paso" para observar cómo viaja la petición desde Streamlit/Python hasta el hardware del motor de base de datos.</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tabla Comparativa Interactiva -->
+      <div class="glass-card rounded-2xl overflow-hidden">
+        <div class="p-5 border-b border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <div>
+            <h3 class="text-lg font-bold text-white">Matriz Comparativa: Despliegue SI vs. Arquitectura Física DBMS</h3>
+            <p class="text-xs text-slate-400">Síntesis técnica para sustentar la Pregunta 2 en examen o defensa oral.</p>
+          </div>
+          <span class="text-xs font-mono text-violet-300 bg-violet-950/50 px-3 py-1 rounded-lg border border-violet-500/30">
+            Ortogonalidad Arquitectónica
+          </span>
+        </div>
+        <div class="overflow-x-auto">
+          <table class="w-full text-left border-collapse text-xs sm:text-sm">
+            <thead>
+              <tr class="bg-slate-900/90 text-slate-300 border-b border-slate-800">
+                <th class="p-4 font-bold">Dimensión de Análisis</th>
+                <th class="p-4 font-bold text-cyan-300">Cliente-Servidor (2 / 3 Capas)</th>
+                <th class="p-4 font-bold text-violet-300">Shared Memory (SMP)</th>
+                <th class="p-4 font-bold text-amber-300">Shared Disk</th>
+                <th class="p-4 font-bold text-emerald-300">Shared Nothing (MPP)</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-800/70 text-slate-300">
+              <tr class="hover:bg-slate-900/40">
+                <td class="p-4 font-semibold text-white">Dominio Arquitectónico</td>
+                <td class="p-4 text-cyan-200 font-medium">Sistema de Información (Software/Red)</td>
+                <td class="p-4">Interna del Motor DBMS (Hardware)</td>
+                <td class="p-4">Interna del Motor DBMS (Hardware)</td>
+                <td class="p-4">Interna del Motor DBMS (Hardware)</td>
+              </tr>
+              <tr class="hover:bg-slate-900/40">
+                <td class="p-4 font-semibold text-white">Acoplamiento de Recursos</td>
+                <td class="p-4">Separa UI, Lógica de Negocio y SGBD vía protocolos (TCP/IP, HTTP).</td>
+                <td class="p-4">Múltiples CPUs comparten <strong>1 RAM global</strong> y <strong>1 arreglo de discos</strong>.</td>
+                <td class="p-4">Cada nodo tiene CPU+RAM privada; todos comparten <strong>SAN/NAS</strong>.</td>
+                <td class="p-4">Cada nodo tiene CPU, RAM y Disco exclusivos; unidos por red de alta velocidad.</td>
+              </tr>
+              <tr class="hover:bg-slate-900/40">
+                <td class="p-4 font-semibold text-white">Cuello de Botella Principal</td>
+                <td class="p-4">Latencia de red entre cliente-servidor o saturación de conexiones.</td>
+                <td class="p-4">Contención en el <strong>bus de memoria RAM</strong> al superar ~16-32 cores.</td>
+                <td class="p-4">Contención en red SAN y sobrecarga del <em>Distributed Lock Manager</em>.</td>
+                <td class="p-4">Rebalanceo de datos (<em>data skew</em>) y transacciones distribuidas (2PC).</td>
+              </tr>
+              <tr class="hover:bg-slate-900/40">
+                <td class="p-4 font-semibold text-white">Ejemplo en Nuestro Proyecto</td>
+                <td class="p-4 font-mono text-xs text-cyan-300">Streamlit/Power BI ↔ Python ↔ PostgreSQL</td>
+                <td class="p-4 font-mono text-xs text-violet-300">PostgreSQL local (dwh_instancia_c)</td>
+                <td class="p-4 font-mono text-xs text-amber-300">Oracle RAC / Clúster SAN Hospitalario</td>
+                <td class="p-4 font-mono text-xs text-emerald-300">MongoDB Atlas Sharded / Greenplum</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===================================================================== -->
+    <!-- SECCIÓN 2: PREGUNTA 7 — PARADIGMAS DE SERVICIO EN LA NUBE (DBaaS)     -->
+    <!-- ===================================================================== -->
+    <section id="section-pregunta7" class="tab-section hidden fade-in space-y-8">
+      <!-- Encabezado Pregunta 7 -->
+      <div class="glass-card rounded-2xl p-6 border-l-4 border-emerald-500">
+        <div class="flex flex-wrap items-center justify-between gap-2 mb-2">
+          <span class="px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-300 text-xs font-bold uppercase tracking-wider">
+            Pregunta 7 • Guía de Estudio
+          </span>
+          <span class="text-xs font-mono text-slate-400">Paradigmas Cloud: DBaaS vs. IaaS / PaaS / SaaS</span>
+        </div>
+        <h2 class="text-xl sm:text-2xl font-bold text-white">
+          Frontera Técnica de DBaaS (Database as a Service) y Balance entre Elasticidad y Vendor Lock-in
+        </h2>
+        <p class="text-slate-300 text-sm mt-2 leading-relaxed">
+          Un entorno <strong class="text-emerald-300">DBaaS</strong> entrega motores de bases de datos listos para operar con elasticidad bajo demanda, respaldos automatizados y alta disponibilidad, abstrayendo el hardware y el sistema operativo, pero manteniendo expuesto el control lógico del modelo de datos, índices y consultas.
+        </p>
+      </div>
+
+      <!-- MATRIZ INTERACTIVA DE RESPONSABILIDAD COMPARTIDA ("¿QUIÉN GESTIONA QUÉ?") -->
+      <div class="glass-card rounded-2xl p-6 space-y-6">
+        <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+          <div>
+            <span class="text-xs font-mono text-emerald-400 uppercase tracking-wider">Simulador de Capas Cloud</span>
+            <h3 class="text-xl font-bold text-white mt-0.5">Matriz Interactiva de Responsabilidad Compartida ("¿Quién gestiona qué?")</h3>
+            <p class="text-xs sm:text-sm text-slate-400 mt-1">
+              Selecciona un modelo de despliegue para visualizar cómo se desplaza la frontera entre el <strong class="text-cyan-300">Equipo/DBA (Eduardo)</strong> y el <strong class="text-violet-300">Proveedor Cloud</strong>.
+            </p>
+          </div>
+
+          <!-- Leyenda -->
+          <div class="flex flex-wrap items-center gap-3 text-xs bg-slate-900/90 px-3.5 py-2 rounded-xl border border-slate-800 shrink-0">
+            <span class="flex items-center gap-1.5 text-cyan-300 font-semibold">
+              <span class="w-3 h-3 rounded bg-cyan-500/30 border border-cyan-400"></span>
+              Gestiona Eduardo / DBA
+            </span>
+            <span class="flex items-center gap-1.5 text-violet-300 font-semibold">
+              <span class="w-3 h-3 rounded bg-violet-500/30 border border-violet-400"></span>
+              Gestiona Proveedor Cloud
+            </span>
+          </div>
+        </div>
+
+        <!-- 5 Botones Selectores de Modelo -->
+        <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5">
+          <button onclick="selectCloudModel('onprem')" id="cloud-btn-onprem" class="cloud-btn p-3 rounded-xl border text-left transition-all cursor-pointer border-slate-700 bg-slate-900/60 hover:border-slate-500">
+            <span class="block text-[10px] font-mono text-slate-400">LOCAL / FÍSICO</span>
+            <span class="block text-xs sm:text-sm font-bold text-white mt-0.5">On-Premise</span>
+            <span class="block text-[11px] text-cyan-400 mt-1 truncate">PostgreSQL Local</span>
+          </button>
+
+          <button onclick="selectCloudModel('iaas')" id="cloud-btn-iaas" class="cloud-btn p-3 rounded-xl border text-left transition-all cursor-pointer border-slate-700 bg-slate-900/60 hover:border-slate-500">
+            <span class="block text-[10px] font-mono text-slate-400">INFRAESTRUCTURA</span>
+            <span class="block text-xs sm:text-sm font-bold text-white mt-0.5">IaaS</span>
+            <span class="block text-[11px] text-slate-400 mt-1 truncate">AWS EC2 / Azure VM</span>
+          </button>
+
+          <button onclick="selectCloudModel('paas')" id="cloud-btn-paas" class="cloud-btn p-3 rounded-xl border text-left transition-all cursor-pointer border-slate-700 bg-slate-900/60 hover:border-slate-500">
+            <span class="block text-[10px] font-mono text-slate-400">PLATAFORMA APP</span>
+            <span class="block text-xs sm:text-sm font-bold text-white mt-0.5">PaaS</span>
+            <span class="block text-[11px] text-slate-400 mt-1 truncate">Heroku / App Engine</span>
+          </button>
+
+          <button onclick="selectCloudModel('dbaas')" id="cloud-btn-dbaas" class="cloud-btn p-3 rounded-xl border text-left transition-all cursor-pointer border-emerald-400 bg-emerald-950/40 shadow-lg shadow-emerald-500/15">
+            <span class="block text-[10px] font-mono text-emerald-300">DATOS COMO SERVICIO</span>
+            <span class="block text-xs sm:text-sm font-bold text-white mt-0.5">DBaaS (Foco P7)</span>
+            <span class="block text-[11px] text-emerald-300 mt-1 truncate">MongoDB Atlas (INEVAL)</span>
+          </button>
+
+          <button onclick="selectCloudModel('saas')" id="cloud-btn-saas" class="cloud-btn col-span-2 sm:col-span-1 p-3 rounded-xl border text-left transition-all cursor-pointer border-slate-700 bg-slate-900/60 hover:border-slate-500">
+            <span class="block text-[10px] font-mono text-slate-400">SOFTWARE FINAL</span>
+            <span class="block text-xs sm:text-sm font-bold text-white mt-0.5">SaaS</span>
+            <span class="block text-[11px] text-slate-400 mt-1 truncate">Power BI / Streamlit Cloud</span>
+          </button>
+        </div>
+
+        <!-- Pila Visual de 8 Capas Técnicas + Explicación de Frontera -->
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+          <!-- Pila de 8 Capas -->
+          <div class="lg:col-span-7 space-y-2" id="cloud-stack-container">
+            <!-- Renderizado dinámico por JS -->
+          </div>
+
+          <!-- Panel Explicativo de la Frontera Técnica -->
+          <div class="lg:col-span-5 glass-panel rounded-2xl p-5 border border-emerald-500/30 space-y-4" id="cloud-detail-panel">
+            <!-- Renderizado dinámico por JS -->
+          </div>
+        </div>
+      </div>
+
+      <!-- ANÁLISIS DE TRADE-OFFS: VENDOR LOCK-IN VS. CONTROL DEL SISTEMA -->
+      <div class="glass-card rounded-2xl p-6 space-y-6">
+        <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-800 pb-4">
+          <div>
+            <span class="text-xs font-mono text-amber-400 uppercase tracking-wider">Evaluación Crítica de Arquitectura</span>
+            <h3 class="text-xl font-bold text-white mt-0.5">Trade-offs: Elasticidad Cloud vs. Vendor Lock-in y Control</h3>
+            <p class="text-xs sm:text-sm text-slate-400 mt-1">
+              Explora escenarios reales de nuestro proyecto para evaluar ventajas e inconvenientes operativos.
+            </p>
+          </div>
+
+          <!-- Selector de Escenarios Reales -->
+          <div class="flex flex-wrap gap-2">
+            <button onclick="selectTradeoffScenario('atlas_to_pg')" id="trade-btn-atlas_to_pg" class="trade-btn px-3.5 py-2 rounded-xl text-xs font-bold bg-amber-500/20 text-amber-200 border border-amber-500/40 transition-all cursor-pointer">
+              Escenario A: Migrar MongoDB Atlas → PostgreSQL IaaS
+            </button>
+            <button onclick="selectTradeoffScenario('pg_to_dbaas')" id="trade-btn-pg_to_dbaas" class="trade-btn px-3.5 py-2 rounded-xl text-xs font-semibold bg-slate-900 text-slate-400 border border-slate-700 hover:text-white transition-all cursor-pointer">
+              Escenario B: Subir dwh_instancia_c → Cloud DBaaS
+            </button>
+          </div>
+        </div>
+
+        <div id="tradeoff-content" class="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <!-- Contenido dinámico renderizado por JS -->
+        </div>
+      </div>
+    </section>
+
+    <!-- ===================================================================== -->
+    <!-- SECCIÓN 3: LABORATORIO INTERACTIVO & MINI-EVALUACIÓN                  -->
+    <!-- ===================================================================== -->
+    <section id="section-quiz" class="tab-section hidden fade-in space-y-8">
+      <div class="glass-card rounded-2xl p-6 border-l-4 border-amber-400">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div>
+            <span class="px-3 py-1 rounded-full bg-amber-500/20 text-amber-300 text-xs font-bold uppercase tracking-wider">
+              Autocomprobación Dinámica
+            </span>
+            <h2 class="text-xl sm:text-2xl font-bold text-white mt-2">
+              Laboratorio de Evaluación: Preguntas 2 y 7 Aplicadas
+            </h2>
+            <p class="text-sm text-slate-400 mt-1">
+              Pon a prueba tu dominio sobre separación de capas, hardware paralelo y paradigmas DBaaS con casos de INEVAL, PostgreSQL y MongoDB Atlas.
+            </p>
+          </div>
+          <div class="bg-slate-900/90 border border-slate-700 rounded-2xl px-5 py-3 text-center shrink-0">
+            <span class="block text-xs text-slate-400 uppercase tracking-wider">Puntaje Actual</span>
+            <span id="quiz-score-display" class="text-2xl font-extrabold text-cyan-400 font-mono">0 / 4</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Contenedor de las 4 Preguntas -->
+      <div id="quiz-container" class="space-y-5">
+        <!-- Renderizado dinámico por JS -->
+      </div>
+
+      <!-- Botón Reiniciar Quiz -->
+      <div class="flex justify-end">
+        <button onclick="resetQuiz()" class="px-5 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-sm font-semibold transition-all cursor-pointer flex items-center gap-2">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+          Reiniciar Evaluación
+        </button>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Pie de Página -->
+  <footer class="glass-card border-t border-slate-800/80 mt-12">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-5 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-400">
+      <div>
+        <strong class="text-slate-200">Eduardo Felipe Oña Yánez</strong> • Pontificia Universidad Católica del Ecuador (PUCE) — Asignatura: <span class="text-cyan-400">Bases de Datos II</span>
+      </div>
+      <div class="font-mono text-[11px] text-slate-500">
+        Ecosistema: INEVAL • INEC • INAMHI • PostgreSQL (dwh_instancia_c) • MongoDB Atlas
+      </div>
+    </div>
+  </footer>
+
+  <!-- ===================================================================== -->
+  <!-- LÓGICA INTERACTIVA JAVASCRIPT (100% AUTOCONTENIDA)                    -->
+  <!-- ===================================================================== -->
+  <script>
+    // -------------------------------------------------------------------------
+    // 1. NAVEGACIÓN ENTRE PESTAÑAS
+    // -------------------------------------------------------------------------
+    function switchTab(tabId) {
+      // Ocultar todas las secciones
+      document.querySelectorAll('.tab-section').forEach(sec => {
+        sec.classList.add('hidden');
+      });
+      // Resetear estilos de botones
+      document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.classList.remove('tab-active');
+      });
+
+      // Mostrar sección seleccionada
+      const targetSection = document.getElementById(`section-${tabId}`);
+      const targetBtn = document.getElementById(`tab-${tabId}`);
+      if (targetSection) targetSection.classList.remove('hidden');
+      if (targetBtn) targetBtn.classList.add('tab-active');
+    }
+
+    // -------------------------------------------------------------------------
+    // 2. TARJETAS INTERACTIVAS: MITO VS REALIDAD (PREGUNTA 2)
+    // -------------------------------------------------------------------------
+    const mythState = { 1: false, 2: false, 3: false };
+    const mythData = {
+      1: {
+        mythTitle: "MITO COMÚN #1",
+        mythText: '"Como mi app usa Cliente-Servidor en 3 capas, mi base de datos PostgreSQL ya tiene escalabilidad paralela interna."',
+        mythSub: "Confunde el desacople de red entre interfaz y servidor con la capacidad física del motor de datos.",
+        realTitle: "REALIDAD TÉCNICA #1",
+        realText: "El despliegue Cliente-Servidor solo desacopla la interfaz (Streamlit/Power BI) del servidor de BD. Si PostgreSQL corre en un único nodo SMP, todas las consultas siguen compitiendo por la misma RAM y disco.",
+        realSub: "El escalamiento paralelo interno depende de particionamiento y topología de hardware (Shared Nothing / Shared Disk)."
+      },
+      2: {
+        mythTitle: "MITO COMÚN #2",
+        mythText: '"El protocolo TCP/IP entre Python y PostgreSQL define cómo se guardan los bloques en el disco duro."',
+        mythSub: "Confunde el protocolo de comunicación de sesión con el gestor de almacenamiento (Storage Manager).",
+        realTitle: "REALIDAD TÉCNICA #2",
+        realText: "Cliente-Servidor regula el intercambio de peticiones SQL y cursores de resultados por red. Una vez dentro del SGBD, el Buffer Manager, el Planificador de Consultas y el Storage Engine deciden cómo leer páginas de 8KB.",
+        realSub: "Son capas completamente independientes de la arquitectura."
+      },
+      3: {
+        mythTitle: "MITO COMÚN #3",
+        mythText: '"Cliente-Servidor es lo opuesto a Shared Nothing o Shared Memory en bases de datos paralelas."',
+        mythSub: "Compara categorías ortogonales: una es topología de aplicación (SI) y la otra es topología de hardware DBMS.",
+        realTitle: "REALIDAD TÉCNICA #3",
+        realText: "Ambas coexisten simultáneamente: un sistema de información tiene arquitectura Cliente-Servidor en su capa de software, mientras que su servidor de BD back-end puede operar internamente como SMP, Shared Disk o MPP.",
+        realSub: "Ejemplo: Streamlit (Cliente) → Python (App Server) → MongoDB Atlas Sharded (Shared Nothing)."
+      }
+    };
+
+    function toggleMythCard(id) {
+      mythState[id] = !mythState[id];
+      const isReality = mythState[id];
+      const badge = document.getElementById(`myth-badge-${id}`);
+      const content = document.getElementById(`myth-content-${id}`);
+      const data = mythData[id];
+
+      if (isReality) {
+        badge.className = "px-2.5 py-0.5 rounded-md bg-emerald-500/20 text-emerald-300 text-xs font-bold";
+        badge.textContent = data.realTitle;
+        content.innerHTML = `
+          <p class="text-sm font-semibold text-emerald-200">${data.realText}</p>
+          <p class="text-xs text-slate-300 mt-3">${data.realSub}</p>
+        `;
+      } else {
+        badge.className = "px-2.5 py-0.5 rounded-md bg-rose-500/20 text-rose-300 text-xs font-bold";
+        badge.textContent = data.mythTitle;
+        content.innerHTML = `
+          <p class="text-sm font-semibold text-slate-200">${data.mythText}</p>
+          <p class="text-xs text-slate-400 mt-3">${data.mythSub}</p>
+        `;
+      }
+    }
+
+    // -------------------------------------------------------------------------
+    // 3. SIMULADOR DE HARDWARE PARALELO Y FLUJO DE CONSULTA (PREGUNTA 2)
+    // -------------------------------------------------------------------------
+    let currentHwArch = 'smp';
+
+    const hwArchitectures = {
+      smp: {
+        title: "Shared Memory (SMP — Symmetric Multiprocessing)",
+        badge: "Nuestro PostgreSQL Local (dwh_instancia_c)",
+        badgeColor: "text-violet-300 bg-violet-500/20 border-violet-500/30",
+        description: "Múltiples núcleos de CPU acceden a un único espacio de memoria RAM global (shared_buffers) y a un mismo subsistema de disco mediante un bus de interconexión compartido.",
+        pros: "Comunicación ultrarrápida entre procesos worker mediante memoria compartida; administración sencilla en un solo nodo Windows/Linux.",
+        cons: "Cuello de botella severo en el bus de memoria y contención de latches/locks cuando se escalan decenas de núcleos sobre millones de filas INEVAL.",
+        visualHtml: `
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-4 items-center">
+            <div class="space-y-2">
+              <p class="text-xs font-mono text-violet-300 uppercase">Núcleos de Procesamiento</p>
+              <div class="grid grid-cols-2 gap-2">
+                <div class="p-2.5 rounded-lg bg-violet-950/50 border border-violet-500/40 text-center text-xs font-mono text-white">CPU Core 1<br><span class="text-[10px] text-violet-300">Worker INEVAL</span></div>
+                <div class="p-2.5 rounded-lg bg-violet-950/50 border border-violet-500/40 text-center text-xs font-mono text-white">CPU Core 2<br><span class="text-[10px] text-violet-300">Worker INAMHI</span></div>
+                <div class="p-2.5 rounded-lg bg-violet-950/50 border border-violet-500/40 text-center text-xs font-mono text-white">CPU Core 3<br><span class="text-[10px] text-violet-300">Hash Join</span></div>
+                <div class="p-2.5 rounded-lg bg-violet-950/50 border border-violet-500/40 text-center text-xs font-mono text-white">CPU Core 4<br><span class="text-[10px] text-violet-300">Sort / Group</span></div>
+              </div>
+            </div>
+            <div class="flex flex-col items-center justify-center p-4 rounded-xl bg-cyan-950/30 border-2 border-dashed border-cyan-500/50 text-center">
+              <span class="text-xs font-bold text-cyan-300 uppercase">Memoria RAM Compartida</span>
+              <span class="text-[11px] font-mono text-slate-300 mt-1">PostgreSQL shared_buffers (Global)</span>
+              <span class="mt-2 px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 text-[10px] font-mono">⚠ Bus único compartido</span>
+            </div>
+            <div class="flex flex-col items-center justify-center p-4 rounded-xl bg-slate-900 border border-slate-700 text-center">
+              <span class="text-xs font-bold text-emerald-300 uppercase">Almacenamiento Único</span>
+              <span class="text-[11px] font-mono text-slate-300 mt-1">Disco Local NVMe / Tablespace</span>
+              <span class="text-[10px] text-slate-400 mt-1">Tablas: clientes, fact_nomina, staging_ineval</span>
+            </div>
+          </div>
+        `
+      },
+      disk: {
+        title: "Shared Disk (Disco Compartido)",
+        badge: "Clúster Alta Disponibilidad / SAN",
+        badgeColor: "text-amber-300 bg-amber-500/20 border-amber-500/30",
+        description: "Cada servidor/nodo posee sus propias CPUs y memoria RAM privada, pero todos los nodos leen y escriben simultáneamente sobre una red de almacenamiento compartida (SAN / NAS).",
+        pros: "Alta tolerancia a fallos (si cae un nodo de cómputo, otro asume sus consultas sin mover los datos físicos).",
+        cons: "Requiere un complejo Distributed Lock Manager (DLM) para sincronizar cachés entre nodos y sufre saturación en el canal de fibra de la SAN.",
+        visualHtml: `
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-4 items-center">
+            <div class="md:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div class="p-3.5 rounded-xl bg-slate-900 border border-amber-500/40">
+                <p class="text-xs font-bold text-amber-300">Nodo Cómputo A</p>
+                <p class="text-[11px] font-mono text-slate-300 mt-1">CPUs Privadas + RAM Privada</p>
+                <p class="text-[10px] text-slate-400 mt-1">Procesa consultas INEVAL</p>
+              </div>
+              <div class="p-3.5 rounded-xl bg-slate-900 border border-amber-500/40">
+                <p class="text-xs font-bold text-amber-300">Nodo Cómputo B</p>
+                <p class="text-[11px] font-mono text-slate-300 mt-1">CPUs Privadas + RAM Privada</p>
+                <p class="text-[10px] text-slate-400 mt-1">Procesa consultas INEC Salud</p>
+              </div>
+            </div>
+            <div class="p-4 rounded-xl bg-amber-950/30 border-2 border-amber-500/50 text-center">
+              <span class="text-xs font-bold text-amber-300 uppercase">Red SAN Compartida</span>
+              <span class="block text-[11px] font-mono text-slate-300 mt-1">Storage Único + DLM Lock</span>
+              <span class="block text-[10px] text-slate-400 mt-1">Todos leen los mismos bloques</span>
+            </div>
+          </div>
+        `
+      },
+      nothing: {
+        title: "Shared Nothing (MPP — Massively Parallel Processing)",
+        badge: "MongoDB Atlas Sharded / Data Warehouses Masivos",
+        badgeColor: "text-emerald-300 bg-emerald-500/20 border-emerald-500/30",
+        description: "Cada nodo es completamente independiente (CPU, RAM y Disco propios). Los datasets masivos (INEVAL, INEC, INAMHI) se particionan horizontalmente (Sharding) entre nodos que procesan en paralelo sin interferencia.",
+        pros: "Escalamiento lineal casi ilimitado (scale-out) agregando nodos económicos; cero contención de hardware compartido.",
+        cons: "Consultas con JOINs entre particiones distintas requieren redistribución de datos por red (Shuffle) y transacciones distribuidas complejas.",
+        visualHtml: `
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div class="p-3.5 rounded-xl bg-emerald-950/30 border border-emerald-500/40">
+              <span class="text-[10px] font-mono text-emerald-300">SHARD 1 (REGIÓN SIERRA)</span>
+              <p class="text-xs font-bold text-white mt-1">CPU + RAM + Disco Propio</p>
+              <p class="text-[11px] text-slate-300 mt-1">Partición INEVAL Pichincha / Azuay</p>
+            </div>
+            <div class="p-3.5 rounded-xl bg-emerald-950/30 border border-emerald-500/40">
+              <span class="text-[10px] font-mono text-emerald-300">SHARD 2 (REGIÓN COSTA)</span>
+              <p class="text-xs font-bold text-white mt-1">CPU + RAM + Disco Propio</p>
+              <p class="text-[11px] text-slate-300 mt-1">Partición INEVAL Guayas / Manabí</p>
+            </div>
+            <div class="p-3.5 rounded-xl bg-emerald-950/30 border border-emerald-500/40">
+              <span class="text-[10px] font-mono text-emerald-300">SHARD 3 (ORIENTE / INSULAR)</span>
+              <p class="text-xs font-bold text-white mt-1">CPU + RAM + Disco Propio</p>
+              <p class="text-[11px] text-slate-300 mt-1">Partición INEVAL Amazonía</p>
+            </div>
+          </div>
+        `
+      }
+    };
+
+    function selectHwArch(archKey) {
+      currentHwArch = archKey;
+      // Actualizar botones
+      document.querySelectorAll('.hw-btn').forEach(btn => {
+        btn.className = "hw-btn px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-400 hover:text-white transition-all cursor-pointer";
+      });
+      const activeBtn = document.getElementById(`hw-btn-${archKey}`);
+      if (activeBtn) {
+        activeBtn.className = "hw-btn px-3 py-1.5 rounded-lg text-xs font-bold bg-violet-600 text-white transition-all cursor-pointer shadow-md";
+      }
+
+      const data = hwArchitectures[archKey];
+      const container = document.getElementById('hw-diagram-container');
+      container.innerHTML = `
+        <div class="space-y-4 fade-in">
+          <div class="flex flex-wrap items-center justify-between gap-2">
+            <h5 class="text-base font-bold text-white">${data.title}</h5>
+            <span class="px-2.5 py-1 rounded-lg text-xs font-mono border ${data.badgeColor}">${data.badge}</span>
+          </div>
+          <p class="text-xs sm:text-sm text-slate-300">${data.description}</p>
+          ${data.visualHtml}
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-3 pt-2 text-xs">
+            <div class="p-3 rounded-xl bg-emerald-950/25 border border-emerald-500/25">
+              <strong class="text-emerald-300">✓ Ventaja Física:</strong> <span class="text-slate-300">${data.pros}</span>
+            </div>
+            <div class="p-3 rounded-xl bg-rose-950/25 border border-rose-500/25">
+              <strong class="text-rose-300">✕ Limitación / Cuello de Botella:</strong> <span class="text-slate-300">${data.cons}</span>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    // Animación paso a paso de la consulta
+    let isSimulating = false;
+    function runQuerySimulation() {
+      if (isSimulating) return;
+      isSimulating = true;
+
+      const btn = document.getElementById('btn-run-sim');
+      const statusBadge = document.getElementById('sim-status-badge');
+      const traceText = document.getElementById('sim-trace-text');
+
+      const nodeClient = document.getElementById('sim-node-client');
+      const nodeMid = document.getElementById('sim-node-middleware');
+      const nodeDb = document.getElementById('sim-node-dbserver');
+      const hwBox = document.getElementById('hw-diagram-container');
+
+      const pipe1 = document.getElementById('pipe-1');
+      const pipe2 = document.getElementById('pipe-2');
+
+      // Reset visual
+      [nodeClient, nodeMid, nodeDb].forEach(n => n.classList.remove('ring-2', 'ring-cyan-400', 'ring-violet-400', 'ring-emerald-400', 'bg-slate-900'));
+      hwBox.classList.remove('ring-2', 'ring-violet-400');
+
+      btn.classList.add('opacity-60', 'cursor-not-allowed');
+      statusBadge.textContent = "Ejecutando simulación...";
+      statusBadge.className = "text-xs font-mono text-cyan-300 bg-cyan-950/60 px-2.5 py-1 rounded-lg border border-cyan-500/40";
+
+      // Paso 1: Front-end
+      nodeClient.classList.add('ring-2', 'ring-cyan-400', 'bg-slate-900');
+      traceText.innerHTML = `<strong class="text-cyan-300">[Paso 1/4 - Capa SI Presentación]</strong> Usuario filtra provincia "Pichincha" en Dashboard Streamlit/Power BI. Se dispara petición HTTP.`;
+
+      setTimeout(() => {
+        if (pipe1) pipe1.innerHTML = '<div class="packet-dot"></div>';
+        nodeMid.classList.add('ring-2', 'ring-violet-400', 'bg-slate-900');
+        traceText.innerHTML = `<strong class="text-violet-300">[Paso 2/4 - Capa SI Aplicación]</strong> Middleware Python valida sesión, construye consulta SQL parametrizada y abre socket TCP/IP (puerto 5433).`;
+      }, 1300);
+
+      setTimeout(() => {
+        if (pipe2) pipe2.innerHTML = '<div class="packet-dot" style="background:#a78bfa;box-shadow:0 0 12px #a78bfa;"></div>';
+        nodeDb.classList.add('ring-2', 'ring-emerald-400', 'bg-slate-900');
+        traceText.innerHTML = `<strong class="text-emerald-300">[Paso 3/4 - Frontera DBMS]</strong> SGBD recibe el SQL, verifica permisos (GRANT) y genera el Plan de Ejecución (Index Scan + Hash Join). Aquí termina Cliente-Servidor.`;
+      }, 2700);
+
+      setTimeout(() => {
+        hwBox.classList.add('ring-2', 'ring-violet-400');
+        const archName = hwArchitectures[currentHwArch].title;
+        traceText.innerHTML = `<strong class="text-amber-300">[Paso 4/4 - Hardware Interno DBMS]</strong> Motor ejecuta operadores físicos bajo topología <u>${archName}</u> sobre bloques de INEVAL, INAMHI y Ventas. ¡Resultado devuelto en 95 ms!`;
+        statusBadge.textContent = "Simulación completada ✓";
+        statusBadge.className = "text-xs font-mono text-emerald-300 bg-emerald-950/60 px-2.5 py-1 rounded-lg border border-emerald-500/40";
+        btn.classList.remove('opacity-60', 'cursor-not-allowed');
+        isSimulating = false;
+      }, 4200);
+    }
+
+    // -------------------------------------------------------------------------
+    // 4. MATRIZ DE RESPONSABILIDAD COMPARTIDA CLOUD (PREGUNTA 7)
+    // -------------------------------------------------------------------------
+    const stackLayers = [
+      { id: 8, name: "8. Datos del Usuario & Gobernanza", desc: "Datasets INEVAL, INEC, INAMHI, privacidad y cumplimiento" },
+      { id: 7, name: "7. Interfaz & Visualización Analítica", desc: "Dashboards Power BI, vistas Streamlit, reportes" },
+      { id: 6, name: "6. Lógica de Aplicación & ETL Python", desc: "Scripts agente_transaccional.py, pipelines ETL" },
+      { id: 5, name: "5. Esquema, Índices, Consultas & Seguridad BD", desc: "Tablas 3FN, índices B-Tree, roles, agregaciones" },
+      { id: 4, name: "4. Backups, Alta Disponibilidad & Elasticidad", desc: "Réplicas automáticas, auto-scaling, snapshots" },
+      { id: 3, name: "3. Instalación & Parches del Motor DBMS", desc: "Versiones PostgreSQL / MongoDB, parches de seguridad" },
+      { id: 2, name: "2. Sistema Operativo & Kernel", desc: "Windows Server / Linux, sistema de archivos, tuning I/O" },
+      { id: 1, name: "1. Hardware Físico, Virtualización & Red", desc: "Servidores bare-metal, discos NVMe, hipervisor, red" }
+    ];
+
+    // Número de capas superiores gestionadas por el usuario/DBA (desde capa 8 hacia abajo)
+    // Ejemplo: en 'dbaas', el usuario gestiona capas 8, 7, 6, 5 (4 capas), y el proveedor gestiona 4, 3, 2, 1.
+    const cloudModels = {
+      onprem: {
+        title: "On-Premise (Servidor Local)",
+        example: "Nuestro PostgreSQL local (dwh_instancia_c) en Windows",
+        userLayers: [8, 7, 6, 5, 4, 3, 2, 1],
+        frontierTitle: "Frontera Técnica: Control Total (0% Abstracción Cloud)",
+        frontierText: "Eduardo / el equipo local administra absolutamente toda la pila: desde el hardware físico y el sistema operativo hasta los backups manuales, parches de PostgreSQL y el diseño de índices.",
+        pros: "Control granular del kernel, cero dependencia de proveedores externos (sin Vendor Lock-in) y costo fijo.",
+        cons: "Cero elasticidad instantánea; si crece el volumen de INEVAL/INEC, hay que comprar hardware físico."
+      },
+      iaas: {
+        title: "IaaS (Infrastructure as a Service)",
+        example: "Máquina Virtual en AWS EC2 / Azure VM con PostgreSQL instalado manualmente",
+        userLayers: [8, 7, 6, 5, 4, 3, 2],
+        frontierTitle: "Frontera Técnica: Virtualización y Hardware",
+        frontierText: "El proveedor cloud entrega cómputo virtualizado, red y almacenamiento en bloque. El DBA sigue siendo responsable de administrar el Sistema Operativo Linux/Windows, instalar el DBMS, parcharlo y configurar backups.",
+        pros: "Permite elegir discos de altos IOPS y ajustar parámetros del SO para bases de datos críticas.",
+        cons: "Alta carga operativa de administración de sistemas (SysAdmin + DBA)."
+      },
+      paas: {
+        title: "PaaS (Platform as a Service)",
+        example: "Entorno de ejecución gestionado para aplicaciones (Heroku / Google App Engine)",
+        userLayers: [8, 7, 6, 5],
+        frontierTitle: "Frontera Técnica: Entorno de Ejecución (Runtime)",
+        frontierText: "Abstrae servidores y sistemas operativos para desplegar código rápidamente. El equipo se enfoca en la lógica de negocio y sus datos sin mantener máquinas virtuales.",
+        pros: "Despliegue ágil de microservicios y APIs en Python.",
+        cons: "Menor acceso al sistema de archivos subyacente y límites en tiempos de ejecución."
+      },
+      dbaas: {
+        title: "DBaaS (Database as a Service)",
+        example: "Nuestro Clúster MongoDB Atlas alojando colecciones INEVAL / INEC / INAMHI",
+        userLayers: [8, 7, 6, 5],
+        frontierTitle: "Frontera Técnica Exacta de DBaaS (Pregunta 7)",
+        frontierText: "El proveedor cloud abstrae hardware, virtualización, SO, instalación de parches del motor, backups automáticos, replicación y elasticidad de almacenamiento/cómputo. Entrega un endpoint seguro listo para conectar. El DBA/desarrollador conserva el control de esquemas, colecciones, índices, pipelines de agregación y reglas de acceso.",
+        pros: "Elasticidad bajo demanda en segundos, backups point-in-time automatizados y cero mantenimiento físico.",
+        cons: "Riesgo de Vendor Lock-in (APIs propietarias como Atlas Search/Triggers), menor ajuste fino de disco/kernel y costos variables por IOPS."
+      },
+      saas: {
+        title: "SaaS (Software as a Service)",
+        example: "Power BI Service / Streamlit Community Cloud",
+        userLayers: [8],
+        frontierTitle: "Frontera Técnica: Consumo Directo de Aplicación",
+        frontierText: "Todo el stack técnico (infraestructura, motor, lógica e interfaz) es operado por el proveedor. El usuario únicamente carga/conecta sus datos y configura permisos de visualización.",
+        pros: "Acceso inmediato desde navegador sin instalación ni mantenimiento técnico.",
+        cons: "Personalización limitada estrictamente a lo que permite la interfaz del fabricante."
+      }
+    };
+
+    function selectCloudModel(modelKey) {
+      const model = cloudModels[modelKey];
+
+      // Actualizar botones
+      document.querySelectorAll('.cloud-btn').forEach(btn => {
+        btn.className = "cloud-btn p-3 rounded-xl border text-left transition-all cursor-pointer border-slate-700 bg-slate-900/60 hover:border-slate-500";
+      });
+      const activeBtn = document.getElementById(`cloud-btn-${modelKey}`);
+      if (activeBtn) {
+        activeBtn.className = "cloud-btn p-3 rounded-xl border text-left transition-all cursor-pointer border-emerald-400 bg-emerald-950/40 shadow-lg shadow-emerald-500/15";
+      }
+
+      // Renderizar pila de 8 capas
+      const stackContainer = document.getElementById('cloud-stack-container');
+      let stackHtml = '';
+      stackLayers.forEach((layer, idx) => {
+        const isUser = model.userLayers.includes(layer.id);
+        const nextLayer = stackLayers[idx + 1];
+        const isFrontier = isUser && nextLayer && !model.userLayers.includes(nextLayer.id);
+
+        const bgClass = isUser
+          ? "bg-cyan-950/35 border-cyan-500/40 text-cyan-100"
+          : "bg-violet-950/35 border-violet-500/40 text-violet-100";
+        const ownerBadge = isUser
+          ? `<span class="px-2.5 py-0.5 rounded-md bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 text-[11px] font-bold shrink-0">Eduardo / DBA</span>`
+          : `<span class="px-2.5 py-0.5 rounded-md bg-violet-500/20 text-violet-300 border border-violet-500/30 text-[11px] font-bold shrink-0">Proveedor Cloud</span>`;
+
+        stackHtml += `
+          <div class="p-3 rounded-xl border ${bgClass} flex items-center justify-between gap-3 transition-all">
+            <div>
+              <p class="text-xs sm:text-sm font-bold">${layer.name}</p>
+              <p class="text-[11px] text-slate-400">${layer.desc}</p>
+            </div>
+            ${ownerBadge}
+          </div>
+        `;
+
+        if (isFrontier) {
+          stackHtml += `
+            <div class="py-1 flex items-center gap-2">
+              <div class="flex-1 h-0.5 bg-gradient-to-r from-emerald-400 via-amber-400 to-emerald-400"></div>
+              <span class="px-2.5 py-0.5 rounded-full bg-amber-500/20 border border-amber-400/50 text-amber-300 text-[10px] font-mono font-bold uppercase tracking-wider">
+                ⚡ Frontera Técnica de Abstracción (${model.title.split(' ')[0]})
+              </span>
+              <div class="flex-1 h-0.5 bg-gradient-to-r from-emerald-400 via-amber-400 to-emerald-400"></div>
+            </div>
+          `;
+        }
+      });
+      stackContainer.innerHTML = stackHtml;
+
+      // Renderizar detalle lateral
+      const detailPanel = document.getElementById('cloud-detail-panel');
+      detailPanel.innerHTML = `
+        <div class="space-y-4 fade-in">
+          <div>
+            <span class="text-xs font-mono text-emerald-400 uppercase">Modelo Seleccionado</span>
+            <h4 class="text-lg font-bold text-white mt-0.5">${model.title}</h4>
+            <p class="text-xs font-mono text-cyan-300 bg-slate-900/90 px-2.5 py-1.5 rounded-lg border border-slate-800 mt-2">
+              Caso Real: ${model.example}
+            </p>
+          </div>
+          <div class="p-3.5 rounded-xl bg-amber-950/25 border border-amber-500/30">
+            <p class="text-xs font-bold text-amber-300 uppercase">${model.frontierTitle}</p>
+            <p class="text-xs sm:text-sm text-slate-200 mt-1.5 leading-relaxed">${model.frontierText}</p>
+          </div>
+          <div class="space-y-2.5 text-xs">
+            <div class="p-3 rounded-xl bg-emerald-950/25 border border-emerald-500/25">
+              <strong class="text-emerald-300">✓ Ventajas Clave:</strong>
+              <p class="text-slate-300 mt-1">${model.pros}</p>
+            </div>
+            <div class="p-3 rounded-xl bg-rose-950/25 border border-rose-500/25">
+              <strong class="text-rose-300">✕ Inconvenientes / Riesgos:</strong>
+              <p class="text-slate-300 mt-1">${model.cons}</p>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    // -------------------------------------------------------------------------
+    // 5. TRADE-OFFS VENDOR LOCK-IN VS CONTROL DEL SISTEMA (PREGUNTA 7)
+    // -------------------------------------------------------------------------
+    const tradeoffScenarios = {
+      atlas_to_pg: {
+        title: "Escenario A: Migrar Colecciones INEVAL/Salud desde MongoDB Atlas (DBaaS) hacia PostgreSQL en IaaS/On-Premise",
+        lockinLevel: "82% Riesgo de Fricción por Vendor Lock-in",
+        prosTitle: "Beneficios de Recuperar Control (IaaS / On-Premise)",
+        prosList: [
+          "Eliminación de dependencia de APIs propietarias de Atlas (Aggregation Pipeline específico, Atlas Triggers, Realm).",
+          "Control total del kernel Linux, sistema de archivos, políticas de VACUUM y ajuste de memoria compartida.",
+          "Previsibilidad financiera: costo fijo de servidor sin sorpresas por picos de lectura/escritura (IOPS) al analizar millones de registros del INEC."
+        ],
+        consTitle: "Costos e Inconvenientes de Abandonar DBaaS",
+        consList: [
+          "Reescritura de consultas documentales JSON/BSON hacia esquemas relacionales 3FN o columnas JSONB en PostgreSQL.",
+          "Pérdida de elasticidad automática: el equipo debe configurar manualmente replicación streaming, failover y backups.",
+          "Mayor carga operativa de mantenimiento y actualización de versiones del motor."
+        ]
+      },
+      pg_to_dbaas: {
+        title: "Escenario B: Migrar el Data Warehouse Local (dwh_instancia_c) hacia un Servicio Cloud DBaaS Gestionado",
+        lockinLevel: "65% Riesgo de Vendor Lock-in (Estándar SQL Portable)",
+        prosTitle: "Ventajas de Adoptar DBaaS para el DWH",
+        prosList: [
+          "Escalabilidad vertical y horizontal bajo demanda durante cierres de mes o cargas masivas ETL de INAMHI e INEVAL.",
+          "Backups automatizados con recuperación a un punto en el tiempo (PITR) y alta disponibilidad Multi-AZ nativa.",
+          "Liberación de tiempo del DBA para enfocarse en modelado estrella, índices y analítica en lugar de parches."
+        ],
+        consTitle: "Inconvenientes y Compromisos en DBaaS",
+        consList: [
+          "Restricciones de superusuario: no se pueden instalar extensiones personalizadas en el sistema operativo ni modificar configuraciones profundas del disco.",
+          "Latencia de red WAN entre los scripts locales en Python y el clúster en la nube comparado con localhost.",
+          "Acoplamiento a servicios periféricos del proveedor (IAM, VPC Peering, KMS)."
+        ]
+      }
+    };
+
+    function selectTradeoffScenario(key) {
+      document.querySelectorAll('.trade-btn').forEach(btn => {
+        btn.className = "trade-btn px-3.5 py-2 rounded-xl text-xs font-semibold bg-slate-900 text-slate-400 border border-slate-700 hover:text-white transition-all cursor-pointer";
+      });
+      const activeBtn = document.getElementById(`trade-btn-${key}`);
+      if (activeBtn) {
+        activeBtn.className = "trade-btn px-3.5 py-2 rounded-xl text-xs font-bold bg-amber-500/20 text-amber-200 border border-amber-500/40 transition-all cursor-pointer";
+      }
+
+      const data = tradeoffScenarios[key];
+      const container = document.getElementById('tradeoff-content');
+      container.innerHTML = `
+        <div class="md:col-span-2 flex flex-wrap items-center justify-between gap-2 bg-slate-900/80 p-3.5 rounded-xl border border-slate-800 fade-in">
+          <p class="text-sm font-bold text-white">${data.title}</p>
+          <span class="px-3 py-1 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40 text-xs font-mono font-bold">
+            ${data.lockinLevel}
+          </span>
+        </div>
+        <div class="glass-panel rounded-2xl p-5 border border-emerald-500/30 space-y-3 fade-in">
+          <h4 class="text-sm font-bold text-emerald-300 flex items-center gap-2">
+            <span>✓</span> ${data.prosTitle}
+          </h4>
+          <ul class="space-y-2.5 text-xs sm:text-sm text-slate-300">
+            ${data.prosList.map(item => `<li class="flex items-start gap-2"><span class="text-emerald-400 mt-0.5">•</span><span>${item}</span></li>`).join('')}
+          </ul>
+        </div>
+        <div class="glass-panel rounded-2xl p-5 border border-rose-500/30 space-y-3 fade-in">
+          <h4 class="text-sm font-bold text-rose-300 flex items-center gap-2">
+            <span>⚠</span> ${data.consTitle}
+          </h4>
+          <ul class="space-y-2.5 text-xs sm:text-sm text-slate-300">
+            ${data.consList.map(item => `<li class="flex items-start gap-2"><span class="text-rose-400 mt-0.5">•</span><span>${item}</span></li>`).join('')}
+          </ul>
+        </div>
+      `;
+    }
+
+    // -------------------------------------------------------------------------
+    // 6. MINI-EVALUACIÓN DINÁMICA (QUIZ DE 4 PREGUNTAS)
+    // -------------------------------------------------------------------------
+    const quizQuestions = [
+      {
+        q: "1. [Pregunta 2] En nuestro proyecto, un dashboard en Streamlit envía consultas vía Python a PostgreSQL local (dwh_instancia_c). ¿Por qué es incorrecto afirmar que 'Cliente-Servidor' es la arquitectura interna de almacenamiento de PostgreSQL?",
+        options: [
+          "Porque Cliente-Servidor solo existe en bases de datos NoSQL como MongoDB Atlas.",
+          "Porque Cliente-Servidor es un patrón de distribución lógica en la capa de Sistema de Información, mientras que la arquitectura interna del DBMS define el acoplamiento físico de CPU, RAM y disco (ej. SMP).",
+          "Porque PostgreSQL no soporta conexiones TCP/IP de múltiples clientes simultáneos."
+        ],
+        correct: 1,
+        explanation: "¡Correcto! Cliente-Servidor separa funcionalmente la interfaz/aplicación (Front-end/Middleware) del servicio de datos en la arquitectura del SI. Internamente, nuestro PostgreSQL local opera bajo una arquitectura física Shared Memory (SMP)."
+      },
+      {
+        q: "2. [Pregunta 2] Si necesitáramos escalar horizontalmente 50 millones de microdatos educativos del INEVAL y egresos hospitalarios del INEC sin sufrir cuellos de botella en un bus único de memoria RAM, ¿qué arquitectura física de DBMS paralelo es la más adecuada?",
+        options: [
+          "Shared Nothing (MPP), particionando horizontalmente los datos (sharding) entre nodos con CPU, RAM y disco propios.",
+          "Shared Memory (SMP) con un único servidor monolítico de un solo núcleo.",
+          "Cliente-Servidor de 2 capas conectando Power BI directo sin índices."
+        ],
+        correct: 0,
+        explanation: "¡Exacto! En Shared Nothing (MPP), cada nodo procesa su propia partición de datos con recursos exclusivos, eliminando la contención en el bus de memoria compartida (SMP) o en la red SAN (Shared Disk)."
+      },
+      {
+        q: "3. [Pregunta 7] Al alojar nuestras colecciones de datos públicos (INEVAL, INEC, INAMHI) en MongoDB Atlas (DBaaS), ¿dónde se ubica exactamente la frontera técnica de responsabilidad?",
+        options: [
+          "El proveedor cloud diseña nuestros índices, esquemas y consultas analíticas, mientras nosotros administramos el sistema operativo.",
+          "El proveedor cloud gestiona hardware, SO, parches del motor, backups automáticos y elasticidad; el equipo/DBA conserva el control del modelo de datos, índices, agregaciones y seguridad lógica.",
+          "El proveedor cloud únicamente entrega servidores físicos vacíos sin sistema operativo instalado."
+        ],
+        correct: 1,
+        explanation: "¡Muy bien! Esa es la esencia del paradigma DBaaS: abstraer la infraestructura y el mantenimiento operativo del motor (parches, HA, backups), dejando al desarrollador/DBA el control lógico de sus datos y consultas."
+      },
+      {
+        q: "4. [Pregunta 7] ¿Cuál es el principal trade-off (compromiso técnico) al utilizar características avanzadas exclusivas de un proveedor DBaaS (como Triggers Cloud o pipelines propietarios) frente a desplegar en IaaS/On-Premise?",
+        options: [
+          "Se gana agilidad, elasticidad y cero mantenimiento físico, pero aumenta el Vendor Lock-in (costo de migración) y se pierde control fino sobre el kernel y disco.",
+          "En DBaaS es imposible realizar respaldos automáticos de la base de datos.",
+          "IaaS ofrece mayor abstracción que DBaaS y elimina la necesidad de administrar el sistema operativo."
+        ],
+        correct: 0,
+        explanation: "¡Correcto! Adoptar DBaaS maximiza la velocidad de desarrollo y elasticidad bajo demanda, pero introduce acoplamiento tecnológico (Vendor Lock-in) y limita el ajuste de bajo nivel del hardware/kernel."
+      }
+    ];
+
+    let userAnswers = {};
+
+    function renderQuiz() {
+      const container = document.getElementById('quiz-container');
+      let html = '';
+
+      quizQuestions.forEach((item, qIdx) => {
+        const answered = userAnswers[qIdx] !== undefined;
+        const selectedOpt = userAnswers[qIdx];
+
+        html += `
+          <div class="glass-card rounded-2xl p-6 space-y-4 border ${answered ? (selectedOpt === item.correct ? 'border-emerald-500/40' : 'border-rose-500/40') : 'border-slate-800'}">
+            <h3 class="text-sm sm:text-base font-bold text-white leading-snug">${item.q}</h3>
+            <div class="space-y-2.5">
+              ${item.options.map((opt, oIdx) => {
+                let btnStyle = "border-slate-700/80 bg-slate-900/60 hover:border-cyan-500/50 text-slate-200";
+                let indicator = `<span class="w-5 h-5 rounded-full border border-slate-600 flex items-center justify-center text-[11px] font-mono shrink-0">${String.fromCharCode(65 + oIdx)}</span>`;
+
+                if (answered) {
+                  if (oIdx === item.correct) {
+                    btnStyle = "border-emerald-500 bg-emerald-950/40 text-emerald-100 font-medium";
+                    indicator = `<span class="w-5 h-5 rounded-full bg-emerald-500 text-slate-950 flex items-center justify-center text-xs font-bold shrink-0">✓</span>`;
+                  } else if (oIdx === selectedOpt) {
+                    btnStyle = "border-rose-500 bg-rose-950/40 text-rose-100";
+                    indicator = `<span class="w-5 h-5 rounded-full bg-rose-500 text-white flex items-center justify-center text-xs font-bold shrink-0">✕</span>`;
+                  } else {
+                    btnStyle = "border-slate-800 bg-slate-950/40 text-slate-500 opacity-60";
+                  }
+                }
+
+                return `
+                  <button onclick="answerQuiz(${qIdx}, ${oIdx})" ${answered ? 'disabled' : ''} class="w-full text-left p-3.5 rounded-xl border ${btnStyle} flex items-start gap-3 transition-all ${answered ? 'cursor-default' : 'cursor-pointer'}">
+                    ${indicator}
+                    <span class="text-xs sm:text-sm">${opt}</span>
+                  </button>
+                `;
+              }).join('')}
+            </div>
+            ${answered ? `
+              <div class="p-3.5 rounded-xl text-xs sm:text-sm fade-in ${selectedOpt === item.correct ? 'bg-emerald-950/30 border border-emerald-500/30 text-emerald-200' : 'bg-amber-950/30 border border-amber-500/30 text-amber-200'}">
+                <strong>Retroalimentación:</strong> ${item.explanation}
+              </div>
+            ` : ''}
+          </div>
+        `;
+      });
+
+      container.innerHTML = html;
+      updateQuizScore();
+    }
+
+    function answerQuiz(qIdx, oIdx) {
+      if (userAnswers[qIdx] !== undefined) return;
+      userAnswers[qIdx] = oIdx;
+      renderQuiz();
+    }
+
+    function updateQuizScore() {
+      let score = 0;
+      Object.keys(userAnswers).forEach(qIdx => {
+        if (userAnswers[qIdx] === quizQuestions[qIdx].correct) {
+          score++;
+        }
+      });
+      document.getElementById('quiz-score-display').textContent = `${score} / ${quizQuestions.length}`;
+    }
+
+    function resetQuiz() {
+      userAnswers = {};
+      renderQuiz();
+    }
+
+    // -------------------------------------------------------------------------
+    // INICIALIZACIÓN AL CARGAR LA PÁGINA
+    // -------------------------------------------------------------------------
+    window.addEventListener('DOMContentLoaded', () => {
+      selectHwArch('smp');
+      selectCloudModel('dbaas');
+      selectTradeoffScenario('atlas_to_pg');
+      renderQuiz();
+    });
+  </script>
+</body>
+</html>
